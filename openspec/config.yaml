@@ -1,0 +1,44 @@
+schema: spec-driven
+
+# Project context
+context: |
+  Goal: a self-hosted replacement for the vTuner internet-radio directory
+  (denon.vtuner.com and related vTuner hosts) that a Denon AV receiver uses
+  for its "Internet Radio" menu, because the public service is unreliable or
+  paywalled.
+  Deployment: runs on a Synology NAS on the home LAN (DSM; Container Manager /
+  Docker and Web Station are the expected building blocks).
+  Redirection: the receiver's DNS is pointed at the Synology (DNS Server
+  package or an override on the LAN DNS), so vTuner hostnames resolve to the
+  NAS and the receiver talks plain HTTP to it.
+  Compatibility: the receiver firmware cannot be changed; responses must match
+  what the receiver expects from vTuner (URL paths, query params, XML format,
+  HTTP not HTTPS). Treat the receiver as a black box and specify behaviour
+  from observed requests.
+  Station list: user-curated, editable without rebuilding (e.g. a config file).
+  Documentation: guides live in docs/ and are written for a home user.
+  Docs, specs and examples must use placeholder data only (e.g. 192.168.1.10,
+  nas.example.lan, 00:11:22:33:44:55, "changeme"), never real IPs, MAC
+  addresses, hostnames or passwords.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
