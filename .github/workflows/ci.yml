@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch replaces a run that's still going.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "Run gofmt on:"; echo "$unformatted"; exit 1; fi
+      - run: go vet ./...
+      - name: Run staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+      - name: Check for known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: Check shell scripts
+        run: shellcheck -s sh -S warning -x -P package/scripts package/scripts/* package/ui/index.cgi scripts/*.sh
+      - name: Check for personal data
+        run: sh scripts/check-secrets.sh
+      - name: Check the OpenSpec changes
+        run: npx --yes @fission-ai/openspec validate --changes --no-interactive
+        env:
+          OPENSPEC_TELEMETRY: "0"
+
+  test:
+    name: Tests and package build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - run: go test -race -coverprofile=coverage.out ./...
+      - name: Show test coverage
+        run: go tool cover -func=coverage.out | tail -1
+      - name: Build packages
+        run: VERSION=0.0.0 BUILD=${{ github.run_number }} ARCHES="x86_64 armv8" sh scripts/build-spk.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: spk-packages
+          path: dist/*.spk
+          retention-days: 14
+
+  docker:
+    name: Docker test environment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Start
+        run: docker compose up --build -d
+        env:
+          VTUNER_DIRECTORY: "off"
+      - name: Walk the menus like a receiver
+        run: docker compose exec -T vtuner fakereceiver -server 127.0.0.1:80 -auto -no-directory
+      - name: Other host names don't reach the app
+        run: curl -fsS -H "Host: nas.example.lan" http://127.0.0.1:8000/ | grep -q "not a vtuner.com host"
+      - name: The admin UI isn't published on the receiver port
+        run: test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: denon.vtuner.com' http://127.0.0.1:8000/admin/api/catalog)" = 404
+      - name: Logs
+        if: failure()
+        run: docker compose logs
+      - name: Stop
+        if: always()
+        run: docker compose down -v

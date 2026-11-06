@@ -1,0 +1,14 @@
+#!/bin/sh
+. "$(dirname "$0")/common"
+# wizard_port comes from the install wizard; it is empty on upgrade.
+if [ -n "$wizard_port" ]; then
+    if ! valid_port "$wizard_port"; then
+        echo "Port must be a number from 1024 to 65535." > "$SYNOPKG_TEMP_LOGFILE"
+        exit 1
+    fi
+    if port_in_use "$wizard_port"; then
+        echo "Port $wizard_port is already used on this NAS. Choose another port." > "$SYNOPKG_TEMP_LOGFILE"
+        exit 1
+    fi
+fi
+exit 0

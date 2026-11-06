@@ -1,0 +1,44 @@
+name: Release
+
+# Pushing a tag such as v1.0.0 builds the packages and publishes a GitHub release.
+# The tag must match a section in CHANGELOG.md.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: Check for personal data
+        run: sh scripts/check-secrets.sh
+      - name: Read the version and release notes from the tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="## [$version]" 'index($0, v) == 1 { on = 1; next } on && /^## / { exit } on' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then echo "CHANGELOG.md has no section for $version"; exit 1; fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Build packages
+        env:
+          BUILD: "1"
+          ARCHES: x86_64 armv8
+          PROJECT_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: sh scripts/build-spk.sh
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd dist && sha256sum ./*.spk > SHA256SUMS)
+          gh release create "$GITHUB_REF_NAME" dist/*.spk dist/SHA256SUMS --title "$GITHUB_REF_NAME" --notes-file notes.md

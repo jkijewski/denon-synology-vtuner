@@ -1,0 +1,16 @@
+#!/bin/sh
+. "$(dirname "$0")/common"
+if [ ! -f "$SETTINGS" ]; then
+    port="${wizard_port:-8580}"
+    valid_port "$port" || port=8580
+    cat > "$SETTINGS" <<EOT
+# vTuner Radio settings. Restart the package after a change.
+VTUNER_LISTEN=127.0.0.1:$port
+VTUNER_HOST=denon.vtuner.com
+# "auto" finds the public radio-browser.info servers, "off" hides public directory browsing.
+VTUNER_DIRECTORY=auto
+EOT
+fi
+# The port-config worker registers this file after postinst, on install and on every upgrade.
+write_port_conf "$(settings_port)"
+exit 0

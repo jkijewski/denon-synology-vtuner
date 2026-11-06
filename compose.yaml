@@ -1,0 +1,33 @@
+# Test environment: vTuner Radio without a Synology NAS.
+#
+#   docker compose up --build -d
+#   receiver side:  http://<this computer>:8000      (requests for *.vtuner.com; set VTUNER_HTTP_PORT=80 for a real receiver)
+#   admin UI:       http://127.0.0.1:8581/admin/     (no login; only on this computer)
+#
+# See docs/testing.md.
+services:
+  vtuner:
+    build: .
+    environment:
+      # "auto" uses the public radio-browser.info directory, "off" works without internet.
+      VTUNER_DIRECTORY: ${VTUNER_DIRECTORY:-auto}
+    volumes:
+      - vtuner-data:/data
+    ports:
+      # nginx shares this container's network, so its ports are published here.
+      - "${VTUNER_HTTP_PORT:-8000}:80"
+      - "127.0.0.1:${VTUNER_ADMIN_PORT:-8581}:8080"
+    restart: unless-stopped
+
+  proxy:
+    image: nginx:1.27-alpine
+    # Same network namespace as vtuner, like DSM's nginx and the package on one NAS.
+    network_mode: "service:vtuner"
+    volumes:
+      - ./test/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - vtuner
+    restart: unless-stopped
+
+volumes:
+  vtuner-data:

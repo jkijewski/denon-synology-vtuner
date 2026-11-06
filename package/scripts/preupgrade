@@ -1,0 +1,14 @@
+#!/bin/sh
+. "$(dirname "$0")/common"
+# Compatibility check. The new package refuses to replace the old one if it can't read the
+# data on this NAS. Older data is fine: vtunerd upgrades it on its first start.
+# SCHEMA_VERSION is added to the common file when the package is built.
+stored=$(cat "$VAR/schema-version" 2>/dev/null)
+case "$stored" in
+    ''|*[!0-9]*) exit 0 ;;
+esac
+if [ -n "$SCHEMA_VERSION" ] && [ "$stored" -gt "$SCHEMA_VERSION" ]; then
+    echo "The station lists on this NAS have data version $stored, but this package only understands up to version $SCHEMA_VERSION. Nothing was changed. Install a newer package." > "$SYNOPKG_TEMP_LOGFILE"
+    exit 1
+fi
+exit 0

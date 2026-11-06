@@ -1,0 +1,10 @@
+# build output
+/build/
+/dist/
+# local runtime data (station lists, admin token, logs)
+/data/
+*.token
+# local settings and secrets
+.env
+.env.*
+.secrets-denylist

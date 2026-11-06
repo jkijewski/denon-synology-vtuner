@@ -1,0 +1,53 @@
+# Shared by the package scripts. DSM sets SYNOPKG_PKGDEST and SYNOPKG_PKGVAR.
+# shellcheck disable=SC2034  # used by the scripts that source this file
+PKG=vtunerradio
+TARGET="${SYNOPKG_PKGDEST:-/var/packages/$PKG/target}"
+VAR="${SYNOPKG_PKGVAR:-/var/packages/$PKG/var}"
+BIN="$TARGET/bin/vtunerd"
+PIDFILE="$VAR/vtunerd.pid"
+LOGFILE="$VAR/vtunerd.log"
+ERRLOG="$VAR/vtunerd.stderr.log"
+SETTINGS="$VAR/settings.env"
+# Registered with DSM's firewall by the port-config worker (conf/resource).
+PORTCONF="$TARGET/port_conf/$PKG.sc"
+
+# True if a TCP socket is listening on port $1 (reads /proc, no netstat needed).
+port_in_use() {
+    hex=$(printf ':%04X' "$1")
+    cat /proc/net/tcp /proc/net/tcp6 2>/dev/null |
+        awk -v p="$hex" '$4 == "0A" && substr($2, length($2) - 4) == p { found = 1 } END { exit !found }'
+}
+
+valid_port() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$1" -ge 1024 ] && [ "$1" -le 65535 ]
+}
+
+# Prints the port of VTUNER_LISTEN in the settings file, or 8580.
+settings_port() {
+    port=$(sed -n 's/^VTUNER_LISTEN=.*:\([0-9][0-9]*\)[[:space:]]*$/\1/p' "$SETTINGS" 2>/dev/null | tail -n 1)
+    valid_port "$port" || port=8580
+    echo "$port"
+}
+
+# Writes the firewall service file for port $1.
+write_port_conf() {
+    mkdir -p "$(dirname "$PORTCONF")"
+    cat > "$PORTCONF" <<EOT
+[$PKG]
+title="vTuner Radio"
+desc="vTuner Radio"
+port_forward="no"
+dst.ports="$1/tcp"
+EOT
+}
+
+# Keeps the stderr log below 1 MB: the older half moves to .1, which replaces the last one.
+rotate_errlog() {
+    [ -f "$ERRLOG" ] || return 0
+    size=$(wc -c < "$ERRLOG" 2>/dev/null || echo 0)
+    [ "$size" -gt 1048576 ] && mv -f "$ERRLOG" "$ERRLOG.1"
+    return 0
+}

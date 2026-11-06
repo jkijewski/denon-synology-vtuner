@@ -1,0 +1,4 @@
+[
+  {"key": "001122334455", "name": "Living room", "firstSeen": "2026-01-01T10:00:00Z", "lastSeen": "2026-01-02T10:00:00Z", "lastIp": "192.168.1.50"},
+  {"key": "default", "name": "Default (unknown receivers)", "firstSeen": "2026-01-01T09:00:00Z", "lastSeen": "2026-01-01T09:00:00Z"}
+]

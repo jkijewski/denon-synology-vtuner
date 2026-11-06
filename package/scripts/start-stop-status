@@ -1,0 +1,46 @@
+#!/bin/sh
+. "$(dirname "$0")/common"
+
+VTUNER_LISTEN=127.0.0.1:8580
+VTUNER_HOST=denon.vtuner.com
+VTUNER_DIRECTORY=auto
+# shellcheck source=/dev/null
+[ -f "$SETTINGS" ] && . "$SETTINGS"
+
+is_running() {
+    [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null
+}
+
+case "$1" in
+    start)
+        is_running && exit 0
+        rotate_errlog
+        "$BIN" serve -listen "$VTUNER_LISTEN" -host "$VTUNER_HOST" -directory "$VTUNER_DIRECTORY" \
+            -data "$VAR" -log "$LOGFILE" >>"$ERRLOG" 2>&1 &
+        echo $! > "$PIDFILE"
+        sleep 1
+        is_running || { echo "vtunerd did not start, see $LOGFILE" > "${SYNOPKG_TEMP_LOGFILE:-/dev/stderr}"; exit 1; }
+        ;;
+    stop)
+        if is_running; then
+            kill "$(cat "$PIDFILE")"
+            i=0
+            while is_running && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done
+            is_running && kill -9 "$(cat "$PIDFILE")"
+        fi
+        rm -f "$PIDFILE"
+        ;;
+    status)
+        is_running && exit 0
+        # 1: the program died but its pid file is still there. 3: not running.
+        [ -f "$PIDFILE" ] && exit 1
+        exit 3
+        ;;
+    prestart|prestop)
+        # Nothing to check before start or stop.
+        ;;
+    *)
+        exit 1
+        ;;
+esac
+exit 0

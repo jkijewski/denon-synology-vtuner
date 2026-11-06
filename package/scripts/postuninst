@@ -1,0 +1,11 @@
+#!/bin/sh
+# shellcheck disable=SC2154  # wizard_delete_data is set by the uninstall wizard
+# DSM also runs this script during an upgrade, without the uninstall wizard. Data is
+# only removed on a real uninstall, and only when the user chose it in the wizard.
+VAR="${SYNOPKG_PKGVAR:-/var/packages/vtunerradio/var}"
+if [ "$SYNOPKG_PKG_STATUS" = "UNINSTALL" ] && [ "$wizard_delete_data" = "true" ]; then
+    case "$VAR" in
+        */vtunerradio/var) find "$VAR/" -mindepth 1 -delete 2>/dev/null ;;
+    esac
+fi
+exit 0

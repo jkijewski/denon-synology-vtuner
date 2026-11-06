@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "nextId": 1003,
+  "stations": [
+    {"id": 1000, "name": "Example Station", "url": "http://stream.example.com/live.mp3", "format": "MP3", "bitrate": 128}
+  ],
+  "folders": [
+    {"id": 1001, "name": "My Stations", "stations": [1000]},
+    {"id": 1002, "name": "Polish rock", "filter": {"country": "PL", "genre": "rock"}}
+  ]
+}

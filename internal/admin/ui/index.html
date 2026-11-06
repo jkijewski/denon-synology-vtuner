@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vTuner Radio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>vTuner Radio</h1>
+  <div class="row">
+    <label>Receiver <select id="device"></select></label>
+    <button id="rename-device" title="Rename this receiver">Rename</button>
+    <select id="copy-device" title="Replace this receiver's list with a copy of another one"><option value="">Copy list from…</option></select>
+    <button id="delete-device" class="danger" title="Forget this receiver and its list">Forget</button>
+  </div>
+  <nav>
+    <button data-tab="stations" class="active">My stations</button>
+    <button data-tab="directory">Public directory</button>
+    <button data-tab="requests">Receiver requests</button>
+    <button data-tab="backup">Import / export</button>
+    <button data-tab="log">Log</button>
+  </nav>
+  <span id="status" role="status"></span>
+</header>
+
+<main>
+<section id="tab-stations">
+  <div class="toolbar">
+    <button id="save" class="primary" disabled>Save changes</button>
+    <button id="revert" disabled>Discard changes</button>
+  </div>
+  <div class="cols">
+    <div class="pane">
+      <h2>Folders</h2>
+      <ul id="tree" class="tree"></ul>
+      <div class="row">
+        <button id="add-folder">Add folder</button>
+        <button id="add-subfolder">Add sub-folder</button>
+        <button id="add-virtual" title="A folder that lists public directory stations matching filters you choose">Add virtual folder</button>
+      </div>
+    </div>
+    <div class="pane wide">
+      <div class="row spread">
+        <h2 id="folder-title">Stations</h2>
+        <div class="row">
+          <button id="edit-filter" hidden>Edit filters</button>
+          <button id="rename-folder">Rename</button>
+          <button id="delete-folder" class="danger">Delete folder</button>
+        </div>
+      </div>
+      <div id="virtual-view" hidden>
+        <p id="filter-summary"></p>
+        <p class="hint">A virtual folder has no stations of its own. When the receiver opens it, it lists the public directory stations that match these filters at that moment.</p>
+        <p class="hint" id="virtual-preview-status"></p>
+        <ul id="virtual-preview" class="plain"></ul>
+      </div>
+      <div id="stations-view">
+      <table id="stations"><thead><tr><th>Name</th><th>Format</th><th>Relay</th><th></th></tr></thead><tbody></tbody></table>
+      <p class="hint" id="empty-hint"></p>
+      <button id="add-station" class="primary">Add station</button>
+      <h3>All stations not in any folder</h3>
+      <ul id="orphans" class="plain"></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tab-directory" hidden>
+  <p class="hint">Stations from the public radio-browser.info directory. Pick a country, a genre or type a name (optionally narrow it to one format), then click Add next to a station and choose the folder of the selected receiver to put it in. To add a station that isn't listed, use "Add station" under My stations and enter its URL.</p>
+  <div class="row">
+    <label>Country <select id="dir-country"><option value="">Any</option></select></label>
+    <label>Genre <select id="dir-tag"><option value="">Any</option></select></label>
+    <label>Format <select id="dir-codec"><option value="">Any</option><option>MP3</option><option>AAC</option><option>AAC+</option></select></label>
+    <label>Name <input id="dir-q" placeholder="e.g. jazz"></label>
+    <button id="dir-search" class="primary">Search</button>
+    <button id="dir-save-virtual" title="Create a folder that always lists the stations matching these filters">Save as virtual folder</button>
+  </div>
+  <table id="dir-results"><thead><tr><th>Name</th><th>Country</th><th>Format</th><th>Genres</th><th></th></tr></thead><tbody></tbody></table>
+</section>
+
+<section id="tab-requests" hidden>
+  <div class="row spread"><p class="hint">Newest first. Open Internet Radio on the receiver and refresh.</p><button id="refresh-requests">Refresh</button></div>
+  <table id="requests"><thead><tr><th>Time</th><th>Client</th><th>Host</th><th>Path</th><th>Query</th><th>Note</th></tr></thead><tbody></tbody></table>
+</section>
+
+<section id="tab-backup" hidden>
+  <h2>Export</h2>
+  <p><button id="export">Download catalog</button></p>
+  <h2>Import</h2>
+  <p><input type="file" id="import-file" accept=".json,application/json"></p>
+  <p>
+    <label><input type="radio" name="mode" value="merge" checked> Merge into the current list</label><br>
+    <label><input type="radio" name="mode" value="replace"> Replace the current list</label>
+  </p>
+  <p><button id="import" class="primary">Import</button></p>
+</section>
+
+<section id="tab-log" hidden>
+  <div class="row spread"><p class="hint">Last part of the service log.</p><button id="refresh-log">Refresh</button></div>
+  <pre id="log"></pre>
+</section>
+</main>
+
+<dialog id="station-dialog">
+  <form method="dialog" id="station-form">
+    <h2 id="station-dialog-title">Station</h2>
+    <label>Name <input name="name" required maxlength="200"></label>
+    <label>Stream URL <input name="url" required type="url" placeholder="http://stream.example.com/live.mp3"></label>
+    <div class="row"><button type="button" id="test-url">Test URL</button><span id="test-result"></span></div>
+    <label>Description <input name="description" maxlength="300"></label>
+    <div class="row">
+      <label>Format <select name="format"><option>MP3</option><option>AAC</option><option>WMA</option><option>OGG</option></select></label>
+      <label>Bitrate (kbit/s) <input name="bitrate" type="number" min="0" max="2000"></label>
+    </div>
+    <label>Country or city <input name="location" maxlength="100"></label>
+    <label>Logo URL <input name="logo" type="url"></label>
+    <label class="check"><input name="relay" type="checkbox"> Play through the NAS (relay). Use it for HTTPS-only streams.</label>
+    <div class="row end">
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="ok" class="primary">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="filter-dialog">
+  <form method="dialog" id="filter-form">
+    <h2 id="filter-dialog-title">Virtual folder</h2>
+    <label>Folder name <input name="folder" required maxlength="200"></label>
+    <label id="filter-parent-label">Place in <select name="parent"></select></label>
+    <div class="row">
+      <label>Country <select name="country"><option value="">Any</option></select></label>
+      <label>Language <select name="language"><option value="">Any</option></select></label>
+    </div>
+    <fieldset class="genres">
+      <legend>Genres</legend>
+      <div class="badges" id="filter-genres-picked"></div>
+      <input type="search" id="filter-genre-search" placeholder="Find a genre, e.g. 80s" aria-label="Find a genre">
+      <div class="genre-list" id="filter-genre-list"></div>
+    </fieldset>
+    <div class="row">
+      <label>Format <select name="format"><option value="">Any</option><option>MP3</option><option>AAC</option><option>AAC+</option></select></label>
+      <label>Minimum bitrate (kbit/s) <input name="minBitrate" type="number" min="0" max="1000000" placeholder="Any"></label>
+    </div>
+    <label>Station name contains <input name="name" maxlength="300" placeholder="e.g. jazz"></label>
+    <div class="row">
+      <label>Sort by <select name="order">
+        <option value="">Most played</option>
+        <option value="votes">Most votes</option>
+        <option value="clicktrend">Trending</option>
+        <option value="bitrate">Highest bitrate</option>
+        <option value="name">Name, A to Z</option>
+      </select></label>
+      <label>Maximum stations <input name="limit" type="number" min="0" max="1000" placeholder="No limit of its own"></label>
+    </div>
+    <p class="hint">Set at least one filter. A station must match all the filters you set. With several genres, any one of them is enough.</p>
+    <p class="err" id="filter-error"></p>
+    <div class="row"><button type="button" id="filter-preview-button">Preview</button><span class="hint" id="filter-preview-status"></span></div>
+    <ul id="filter-preview" class="plain preview"></ul>
+    <div class="row end">
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="ok" class="primary">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

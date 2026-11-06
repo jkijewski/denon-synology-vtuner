@@ -1,0 +1,23 @@
+[
+  {
+    "step_title": "Remove vTuner Radio",
+    "items": [
+      {
+        "type": "singleselect",
+        "desc": "Choose what happens to the station lists of all receivers. Keeping them means a later install of vTuner Radio finds them again. To keep a copy elsewhere, cancel now, open vTuner Radio and use Import / export > Download catalog for each receiver. Also remove the vtuner.com rule in Control Panel > Login Portal > Advanced > Reverse Proxy.",
+        "subitems": [
+          {
+            "key": "wizard_keep_data",
+            "desc": "Keep the station lists and settings on this NAS",
+            "defaultValue": true
+          },
+          {
+            "key": "wizard_delete_data",
+            "desc": "Delete the station lists and settings",
+            "defaultValue": false
+          }
+        ]
+      }
+    ]
+  }
+]
