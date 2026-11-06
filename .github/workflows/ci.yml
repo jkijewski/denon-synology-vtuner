@@ -31,6 +31,8 @@ jobs:
         run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
       - name: Check for known vulnerabilities
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: Check the workflow files
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
       - name: Check shell scripts
         run: shellcheck -s sh -S warning -x -P package/scripts package/scripts/* package/ui/index.cgi scripts/*.sh
       - name: Check for personal data
@@ -71,9 +73,11 @@ jobs:
       - name: Walk the menus like a receiver
         run: docker compose exec -T vtuner fakereceiver -server 127.0.0.1:80 -auto -no-directory
       - name: Other host names don't reach the app
-        run: curl -fsS -H "Host: nas.example.lan" http://127.0.0.1:8000/ | grep -q "not a vtuner.com host"
+        run: |
+          curl -fsS -H "Host: nas.example.lan" http://127.0.0.1:8000/ | grep -q "not a vtuner.com host"
       - name: The admin UI isn't published on the receiver port
-        run: test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: denon.vtuner.com' http://127.0.0.1:8000/admin/api/catalog)" = 404
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: denon.vtuner.com' http://127.0.0.1:8000/admin/api/catalog)" = 404
       - name: Logs
         if: failure()
         run: docker compose logs
