@@ -2,7 +2,7 @@
 
 All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). The build script copies the section for the version it builds into the package, where Package Center shows it as "What's new".
 
-## [1.0.1] - unreleased
+## [1.0.1] - 2026-11-09
 
 Security fixes from a review of what a malicious station list or directory entry could do. None of them allowed control of the NAS.
 
