@@ -76,6 +76,7 @@ func serve(args []string) error {
 	host := fs.String("host", env("VTUNER_HOST", "denon.vtuner.com"), "vTuner host name used in generated URLs")
 	maxTitle := fs.Int("max-title", 40, "shorten names longer than this many characters")
 	relayMax := fs.Int("relay-max", 3, "maximum simultaneous relayed streams")
+	relayLAN := fs.Bool("relay-lan", os.Getenv("VTUNER_RELAY_LAN") == "true", "let relayed stations you added reach addresses on the home network (never the NAS itself)")
 	logMax := fs.Int("request-log", 500, "number of receiver requests kept for the admin UI")
 	dirURL := fs.String("directory", env("VTUNER_DIRECTORY", "auto"), "public directory API base URL, \"auto\" to discover radio-browser servers, or \"off\"")
 	dirLimit := fs.Int("directory-limit", 200, "maximum stations per directory listing")
@@ -126,6 +127,10 @@ func serve(args []string) error {
 	vt := &vtuner.Handler{Devices: reg, Directory: dir, Log: rlog, DefaultHost: *host, MaxTitle: *maxTitle,
 		SearchEnabled: *search, Token: "0000000000000000", DirLimit: *dirLimit, TagCount: 60}
 	rl := relay.New(vt.RelayResolver, *relayMax)
+	if *relayLAN {
+		rl.AllowLAN()
+		log.Print("relay: stations you added may reach the home network")
+	}
 	adm := &admin.Handler{Devices: reg, Directory: dir, DirLimit: *dirLimit, Log: rlog, Relay: rl, Token: token, ServiceLog: *logPath, Version: version}
 
 	mux := http.NewServeMux()

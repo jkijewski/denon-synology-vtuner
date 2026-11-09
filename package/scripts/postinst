@@ -9,6 +9,8 @@ VTUNER_LISTEN=127.0.0.1:$port
 VTUNER_HOST=denon.vtuner.com
 # "auto" finds the public radio-browser.info servers, "off" hides public directory browsing.
 VTUNER_DIRECTORY=auto
+# "true" lets relayed stations you added play from servers on your home network.
+VTUNER_RELAY_LAN=false
 EOT
 fi
 # The port-config worker registers this file after postinst, on install and on every upgrade.
