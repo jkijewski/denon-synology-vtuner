@@ -136,6 +136,7 @@ type Client struct {
 
 	mu           sync.Mutex
 	cache        map[string]cached
+	cacheBytes   int             // total size of the cached answers
 	ids          map[int]Station // numeric id -> station, filled by listings
 	servers      []string
 	nextDiscover time.Time
@@ -145,6 +146,17 @@ type cached struct {
 	at   time.Time
 	body []byte
 }
+
+const (
+	// maxAnswer is the largest directory answer read. The biggest real one, 2000 stations for a
+	// virtual folder of 1000, is about 3 MB.
+	maxAnswer     = 8 << 20
+	maxCacheItems = 500
+)
+
+// maxCacheBytes limits the memory the cache uses. Receivers on the LAN can make new
+// entries without a login, for example with search texts. A variable for the tests.
+var maxCacheBytes = 64 << 20
 
 // New returns a client for base ("" discovers the servers).
 func New(base string) *Client {
@@ -170,19 +182,40 @@ func (c *Client) get(ctx context.Context, path string, v any) error {
 	if err != nil {
 		return err
 	}
+	c.store(path, raw)
+	return json.Unmarshal(raw, v)
+}
+
+// store caches an answer, first dropping expired ones and then the oldest until it fits.
+func (c *Client) store(path string, raw []byte) {
+	if len(raw) > maxCacheBytes {
+		return // used once, not cached
+	}
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	now := time.Now()
+	if old, ok := c.cache[path]; ok {
+		c.cacheBytes -= len(old.body)
+		delete(c.cache, path)
+	}
 	for k, e := range c.cache {
 		if now.Sub(e.at) >= c.TTL {
+			c.cacheBytes -= len(e.body)
 			delete(c.cache, k)
 		}
 	}
-	if len(c.cache) > 500 {
-		c.cache = map[string]cached{}
+	for len(c.cache) > 0 && (len(c.cache) >= maxCacheItems || c.cacheBytes+len(raw) > maxCacheBytes) {
+		oldest, at := "", now
+		for k, e := range c.cache {
+			if !e.at.After(at) {
+				oldest, at = k, e.at
+			}
+		}
+		c.cacheBytes -= len(c.cache[oldest].body)
+		delete(c.cache, oldest)
 	}
 	c.cache[path] = cached{now, raw}
-	c.mu.Unlock()
-	return json.Unmarshal(raw, v)
+	c.cacheBytes += len(raw)
 }
 
 func (c *Client) bases(ctx context.Context) []string {
@@ -231,7 +264,7 @@ func (c *Client) fetch(ctx context.Context, u string) (json.RawMessage, error) {
 		return nil, fmt.Errorf("directory: status %d", resp.StatusCode)
 	}
 	var raw json.RawMessage
-	err = json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(&raw)
+	err = json.NewDecoder(io.LimitReader(resp.Body, maxAnswer)).Decode(&raw)
 	return raw, err
 }
 

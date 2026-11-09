@@ -59,7 +59,8 @@ func (l *Log) Recent() []Entry {
 }
 
 // ClientIP returns the original client address, trusting X-Forwarded-For / X-Real-IP
-// only from the local reverse proxy.
+// only from the local reverse proxy. Of X-Forwarded-For it takes the last address, which the
+// proxy adds itself; the ones before it come from the client and can be made up.
 func ClientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -68,8 +69,12 @@ func ClientIP(r *http.Request) string {
 	if host != "127.0.0.1" && host != "::1" {
 		return host
 	}
-	forwarded, _, _ := strings.Cut(r.Header.Get("X-Forwarded-For"), ",")
-	for _, v := range []string{r.Header.Get("X-Real-IP"), forwarded} {
+	forwarded := ""
+	if all := r.Header.Values("X-Forwarded-For"); len(all) > 0 {
+		last := all[len(all)-1]
+		forwarded = last[strings.LastIndexByte(last, ',')+1:]
+	}
+	for _, v := range []string{forwarded, r.Header.Get("X-Real-IP")} {
 		if v = strings.TrimSpace(v); net.ParseIP(v) != nil {
 			return v
 		}

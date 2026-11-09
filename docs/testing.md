@@ -69,6 +69,7 @@ Set these as environment variables or in a `.env` file next to `compose.yaml`. T
 | `VTUNER_HTTP_PORT` | `8000` | Port for receiver requests on your computer. A real receiver always uses port 80, so set `80` for [level 3](#3-test-with-a-real-receiver). |
 | `VTUNER_ADMIN_PORT` | `8581` | Port for the admin UI, on `127.0.0.1` only. Change it if another program uses 8581. |
 | `VTUNER_DIRECTORY` | `auto` | `auto` uses the public radio-browser.info directory, `off` works without internet |
+| `VTUNER_RELAY_LAN` | `false` | `true` lets relayed stations you added play from a server on your network |
 
 Example `.env`:
 

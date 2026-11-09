@@ -4,8 +4,11 @@
 VTUNER_LISTEN=127.0.0.1:8580
 VTUNER_HOST=denon.vtuner.com
 VTUNER_DIRECTORY=auto
+VTUNER_RELAY_LAN=false
 # shellcheck source=/dev/null
 [ -f "$SETTINGS" ] && . "$SETTINGS"
+# Anything but "true" keeps the relay on the internet, so a typo can't stop the start.
+[ "$VTUNER_RELAY_LAN" = true ] || VTUNER_RELAY_LAN=false
 
 is_running() {
     [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null
@@ -16,7 +19,7 @@ case "$1" in
         is_running && exit 0
         rotate_errlog
         "$BIN" serve -listen "$VTUNER_LISTEN" -host "$VTUNER_HOST" -directory "$VTUNER_DIRECTORY" \
-            -data "$VAR" -log "$LOGFILE" >>"$ERRLOG" 2>&1 &
+            -relay-lan="$VTUNER_RELAY_LAN" -data "$VAR" -log "$LOGFILE" >>"$ERRLOG" 2>&1 &
         echo $! > "$PIDFILE"
         sleep 1
         is_running || { echo "vtunerd did not start, see $LOGFILE" > "${SYNOPKG_TEMP_LOGFILE:-/dev/stderr}"; exit 1; }

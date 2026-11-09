@@ -254,3 +254,30 @@ func TestStationsWithAnyGenre(t *testing.T) {
 		t.Error("no error when one genre fails")
 	}
 }
+
+// The cache stays within its byte budget, dropping the oldest answers first.
+func TestCacheSizeIsBounded(t *testing.T) {
+	defer func(n int) { maxCacheBytes = n }(maxCacheBytes)
+	maxCacheBytes = 100
+	c := New("http://directory.example.com")
+	for i := range 10 {
+		c.store(fmt.Sprintf("/p%d", i), make([]byte, 30))
+		time.Sleep(time.Millisecond)
+	}
+	if c.cacheBytes > maxCacheBytes || len(c.cache) != 3 {
+		t.Fatalf("%d bytes in %d entries", c.cacheBytes, len(c.cache))
+	}
+	for _, p := range []string{"/p7", "/p8", "/p9"} {
+		if _, ok := c.cache[p]; !ok {
+			t.Errorf("newest answer %s dropped", p)
+		}
+	}
+	c.store("/p9", make([]byte, 10)) // replacing an entry doesn't count it twice
+	if c.cacheBytes != 70 {
+		t.Fatalf("%d bytes after replacing", c.cacheBytes)
+	}
+	c.store("/huge", make([]byte, 200))
+	if _, ok := c.cache["/huge"]; ok || c.cacheBytes != 70 {
+		t.Fatalf("an answer bigger than the cache was kept: %d bytes", c.cacheBytes)
+	}
+}

@@ -138,6 +138,7 @@ The settings file is `/var/packages/vtunerradio/var/settings.env` on the NAS. Re
 | `VTUNER_LISTEN` | `127.0.0.1:8580` | Local address and port |
 | `VTUNER_HOST` | `denon.vtuner.com` | Host name used in links when a request has none |
 | `VTUNER_DIRECTORY` | `auto` | `auto` uses the public radio-browser.info servers, `off` hides directory browsing |
+| `VTUNER_RELAY_LAN` | `false` | `true` lets relayed stations you added play from a server on your home network, such as `http://192.168.1.20/live.mp3`. Leave it `false` unless you need that: an imported list could otherwise make the NAS fetch pages from devices on your network. The NAS's own addresses are always refused. |
 
 ## Troubleshooting
 
@@ -150,6 +151,7 @@ The settings file is `/var/packages/vtunerradio/var/settings.env` on the NAS. Re
 | A request has the note "unknown request" | The receiver asked for something vTuner Radio doesn't know yet. The menu still works. Please report the path and query in an issue. |
 | **Public directory not reachable** | The NAS can reach the internet, and `VTUNER_DIRECTORY` isn't `off`. |
 | A station doesn't play | Click **Edit** and **Test URL**. Turn on the relay for HTTPS streams. Pick an MP3 stream if the receiver can't play the format. |
+| A relayed station on your home network doesn't play, and the log says "not allowed" | Set `VTUNER_RELAY_LAN=true` in the settings file, or turn the relay off for that station. |
 | Opening vTuner Radio says it "couldn't confirm your DSM login" | You're signed in, but the package's login check failed. Open **Details** on that page and include them when you report the problem. They contain no passwords, cookies or tokens. |
 | Opening vTuner Radio says "Please sign in" or "Only DSM administrators" | Sign in to DSM with an account in the **administrators** group, then open it from the DSM main menu. |
 | The package doesn't start | Open **Log** in vTuner Radio, or read `/var/packages/vtunerradio/var/vtunerd.log` and `vtunerd.stderr.log`. |

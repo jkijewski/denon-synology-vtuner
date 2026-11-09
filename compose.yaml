@@ -11,6 +11,8 @@ services:
     environment:
       # "auto" uses the public radio-browser.info directory, "off" works without internet.
       VTUNER_DIRECTORY: ${VTUNER_DIRECTORY:-auto}
+      # "true" lets relayed stations you added reach servers on your network.
+      VTUNER_RELAY_LAN: ${VTUNER_RELAY_LAN:-false}
     volumes:
       - vtuner-data:/data
     ports:

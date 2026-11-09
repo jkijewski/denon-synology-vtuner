@@ -2,6 +2,7 @@ package relay
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -127,7 +128,7 @@ func TestProbeSuggestsRelayForHTTPS(t *testing.T) {
 	}))
 	defer up.Close()
 	rl := New(store(t), 1)
-	rl.Client = up.Client()
+	rl.ProbeClient = up.Client()
 	p := rl.Test(t.Context(), up.URL+"/live.aac")
 	if !p.Reachable || !p.HTTPSOnly || !p.SuggestRelay {
 		t.Fatalf("%+v", p)
@@ -140,7 +141,7 @@ func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f
 
 func TestProbeRedirectToHTTPSIsStillHTTPSOnly(t *testing.T) {
 	rl := New(store(t), 1)
-	rl.Client = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+	rl.ProbeClient = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Scheme == "http" {
 			u := *r.URL
 			u.Scheme = "https"
@@ -155,7 +156,7 @@ func TestProbeRedirectToHTTPSIsStillHTTPSOnly(t *testing.T) {
 
 func TestProbeHTTPAlsoWorks(t *testing.T) {
 	rl := New(store(t), 1)
-	rl.Client = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+	rl.ProbeClient = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"audio/mpeg"}}, Body: http.NoBody, Request: r}, nil
 	})}
 	if p := rl.Test(t.Context(), "https://stream.example.com/live.mp3"); p.HTTPSOnly {
@@ -180,6 +181,7 @@ func TestAllowedAddresses(t *testing.T) {
 		{"100.64.0.1", true, false},
 		{"fd00::1", true, false},
 		{"64:ff9b::a00:1", true, false},
+		{"0.1.2.3", false, false},
 		{"8.8.8.8", true, true},
 		{"2606:4700:4700::1111", true, true},
 	} {
@@ -277,4 +279,129 @@ func TestRelayEndsStalledStream(t *testing.T) {
 	if w.Body.String() != "AUDIO" {
 		t.Fatalf("%q", w.Body.String())
 	}
+}
+
+// The NAS's own network addresses are refused like its loopback address, for every client.
+func TestOwnAddressesRefused(t *testing.T) {
+	own := netip.MustParseAddr("192.168.1.10")
+	defer func(f func(netip.Addr) bool) { ownAddr = f }(ownAddr)
+	ownAddr = func(ip netip.Addr) bool { return ip == own }
+	if allowedLAN(own) || allowedInternet(own) {
+		t.Fatal("own address allowed")
+	}
+	if !allowedLAN(netip.MustParseAddr("192.168.1.20")) {
+		t.Fatal("other LAN address refused")
+	}
+}
+
+// The real interface list holds the loopback address, which shows that it is read.
+func TestOwnAddrsReadsInterfaces(t *testing.T) {
+	var c addrCache
+	if !c.has(netip.MustParseAddr("127.0.0.1")) {
+		t.Skip("no loopback interface here")
+	}
+}
+
+// dialErr returns the error of a connection attempt through client, which is refused before
+// any packet leaves when the address isn't allowed.
+func dialErr(t *testing.T, client *http.Client, rawURL string) error {
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	resp, err := client.Do(req)
+	if err == nil {
+		resp.Body.Close()
+	}
+	return err
+}
+
+// Stations you added may come from an imported file, so their relay stays on the internet
+// unless the administrator allows the home network.
+func TestOwnStationsReachLANOnlyWhenAllowed(t *testing.T) {
+	rl := New(store(t), 1)
+	if err := dialErr(t, rl.Client, "http://10.0.0.1:9/"); !errors.Is(err, ErrNotAllowed) {
+		t.Fatalf("default client reached the LAN: %v", err)
+	}
+	if err := dialErr(t, rl.PublicClient, "http://192.168.1.20:9/"); !errors.Is(err, ErrNotAllowed) {
+		t.Fatalf("public client: %v", err)
+	}
+	if err := dialErr(t, rl.ProbeClient, "http://10.0.0.1:9/"); errors.Is(err, ErrNotAllowed) {
+		t.Fatalf("probe client refused the LAN: %v", err)
+	}
+	rl.AllowLAN()
+	if err := dialErr(t, rl.Client, "http://10.0.0.1:9/"); errors.Is(err, ErrNotAllowed) {
+		t.Fatalf("AllowLAN client refused the LAN: %v", err)
+	}
+	if err := dialErr(t, rl.Client, "http://127.0.0.1:9/"); !errors.Is(err, ErrNotAllowed) {
+		t.Fatalf("AllowLAN client reached the NAS: %v", err)
+	}
+}
+
+// An upstream page must not be served as a page under the NAS's vtuner.com name.
+func TestRelayOnlyPassesAudioTypes(t *testing.T) {
+	for upstream, want := range map[string]string{
+		"text/html; charset=utf-8": "audio/mpeg",
+		"image/svg+xml":            "audio/mpeg",
+		"":                         "audio/mpeg",
+		"audio/aacp":               "audio/aacp",
+		"application/ogg":          "application/ogg",
+		"application/octet-stream": "application/octet-stream",
+	} {
+		up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header()["Content-Type"] = []string{upstream}
+			w.Write([]byte("<script>alert(1)</script>"))
+		}))
+		rl := local(store(t, station{1, up.URL + "/live", true}), 1)
+		w := httptest.NewRecorder()
+		rl.ServeHTTP(w, httptest.NewRequest("GET", "/relay/1", nil))
+		up.Close()
+		if got := w.Header().Get("Content-Type"); got != want {
+			t.Errorf("%q: served as %q, want %q", upstream, got, want)
+		}
+		if w.Header().Get("X-Content-Type-Options") != "nosniff" || !strings.HasPrefix(w.Header().Get("Content-Security-Policy"), "sandbox") {
+			t.Errorf("%q: missing nosniff or sandbox: %v", upstream, w.Header())
+		}
+	}
+}
+
+// One client can't hold every relay slot.
+func TestRelayLimitsStreamsPerClient(t *testing.T) {
+	release := make(chan struct{})
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write([]byte("A"))
+		w.(http.Flusher).Flush()
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer up.Close()
+	rl := local(store(t, station{1, up.URL + "/live", true}), 3)
+	rl.PerClient = 1
+	srv := httptest.NewServer(rl)
+	defer srv.Close()
+	get := func(client string) *http.Response {
+		req, _ := http.NewRequest("GET", srv.URL+"/relay/1", nil)
+		req.Header.Set("X-Forwarded-For", client) // the test server's peer is the loopback proxy
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+	first := get("192.168.1.50")
+	defer first.Body.Close()
+	first.Body.Read(make([]byte, 1))
+	if r := get("192.168.1.50"); r.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("second stream of one client: %d", r.StatusCode)
+	} else {
+		r.Body.Close()
+	}
+	other := get("192.168.1.51")
+	defer other.Body.Close()
+	if other.StatusCode != http.StatusOK {
+		t.Fatalf("other client: %d", other.StatusCode)
+	}
+	close(release)
 }
